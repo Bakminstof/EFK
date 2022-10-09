@@ -1,0 +1,59 @@
+version: '3.1'
+services:
+  log_getter:
+    build:
+      context: logs_getter
+    restart: always
+    stop_signal: SIGKILL
+    networks:
+      - efk
+    depends_on:
+      - fluentd_l
+
+  elasticsearch_l:
+    build:
+      context: elasticsearch/
+      args:
+        ELK_VERSION: $EFK_VERSION
+    restart: always
+    volumes:
+      - ./elasticsearch/data:/usr/share/elasticsearch/data
+    ports:
+      - "9222:9222"
+    environment:
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+      ELASTIC_PASSWORD: $ELASTIC_PASSWORD
+      # Use single node discovery in order to disable production mode and avoid bootstrap checks.
+      # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
+      discovery.type: single-node
+    networks:
+      - efk
+
+  fluentd_l:
+    build:
+      context: fluentd/
+    restart: always
+    ports:
+      - "6969:6969"
+      - "6969:6969/udp"
+    networks:
+      - efk
+    depends_on:
+      - elasticsearch_l
+
+  kibana_l:
+      build:
+        context: kibana/
+        args:
+          ELK_VERSION: $EFK_VERSION
+      restart: always
+      ports:
+        - "5656:5656"
+      networks:
+        - efk
+      depends_on:
+        - elasticsearch_l
+
+networks:
+  efk:
+    driver: bridge
